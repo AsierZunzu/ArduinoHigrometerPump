@@ -96,6 +96,7 @@ int getHygrometerValue()
   Serial.print(" hygrometerValueRaw: " + String(hygrometerValueRaw));
   while (hygrometerValueRaw >= hygrometerConstraintHigh || hygrometerValueRaw <= hygrometerConstraintLow) {
     hygrometerValueRaw = analogRead(hygrometer);
+    Serial.print(" hygrometerValueRaw: " + String(hygrometerValueRaw));
     Serial.println(F(" Hygrometer failure detected, pump stopped."));
     stopPump();
     errorBlink();
