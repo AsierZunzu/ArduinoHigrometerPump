@@ -7,10 +7,12 @@ RTC_DS3231 rtc;
 const int hygrometer = A0;  //Hygrometer sensor analog pin output at pin A0 of Arduino
 const int pump = 12;  //Hygrometer sensor analog pin output at pin A0 of Arduino
 const int hygrometerThreshold = 50; //System will start pumping water when humidity is under this threshold, representing percentages.
-const int pumpAlertThreshold = 20; //The system will consider that if the time the pump has been active is higher thant this variable, a hardware error must have happened.
+const int pumpAlertThreshold = 60; //The system will consider that if the time the pump has been active is higher thant this variable, a hardware error must have happened.
 const int refreshingRate = 1000; //ms, looping time
 const int sleepBlinkingRate = 1000; //ms
 const int alertBlinkingRate = 100; //ms
+const int hygrometerConstraintHigh = 980;
+const int hygrometerConstraintLow = 300;
 
 //Variables
 int hygrometerValue , hygrometerValueRaw, hygrometerValueConstrain;
@@ -31,7 +33,7 @@ void setup() {
   //Initialize RTC
   delay(1000);
   if (!rtc.begin()) {
-    Serial.println(F("Couldn't find RTC"));
+    Serial.println(F(" Couldn't find RTC"));
     while (1);
   }
   if (rtc.lostPower()) {
@@ -61,12 +63,22 @@ void loop() {
 bool managePump(int hygrometerValue)
 {
   if (hygrometerValue > hygrometerThreshold) {
-    digitalWrite(pump, HIGH);
+    stopPump();
     return false;
   } else {
-    digitalWrite(pump, LOW);
+    startPump();
     return true;
   }
+}
+
+void stopPump()
+{
+  digitalWrite(pump, HIGH);
+}
+
+void startPump()
+{
+  digitalWrite(pump, LOW);
 }
 
 /**
@@ -91,7 +103,8 @@ void resetSecondsPumping()
 void checkSystemErrors()
 {
   if (secondsPumping > pumpAlertThreshold) {
-    Serial.println(F("Excessive pumping detected, stopping all sistems now."));
+    Serial.println(F(" Excessive pumping detected, stopping all sistems now."));
+    stopPump();
     initilializeInfiniteBlinking();
   }
 }
@@ -142,10 +155,18 @@ void playSleepBlinkingSecence()
 */
 int getHygrometer()
 {
-  hygrometerValueRaw = analogRead(hygrometer);     //Read analog value
-  hygrometerValueConstrain = constrain(hygrometerValueRaw, 250, 1023); //Keep the ranges!
-  hygrometerValue = map(hygrometerValueConstrain, 250, 1023, 100, 0); //Map value : 250 will be 100% and 1023 will be 0%
-
-  Serial.print(" Moisture: " + String(hygrometerValue)/*+"("+hygrometerValueConstrain+")["+hygrometerValue+"]"*/ + "% ");
+  hygrometerValueRaw = analogRead(hygrometer);
+  Serial.print(" hygrometerValueRaw: " + String(hygrometerValueRaw));
+  if (hygrometerValueRaw >= hygrometerConstraintHigh || hygrometerValueRaw <= hygrometerConstraintLow) {
+    Serial.println(F(" Hygrometer failure detected, stopping all systems."));
+    stopPump();
+    initilializeInfiniteBlinking();
+  }
+  hygrometerValueConstrain = constrain(hygrometerValueRaw, hygrometerConstraintLow, hygrometerConstraintHigh); //Keep the ranges!
+  
+  //Map value : hygrometerConstraintLow will be 100% and hygrometerConstraintHigh will be 0%
+  hygrometerValue = map(hygrometerValueConstrain, hygrometerConstraintLow, hygrometerConstraintHigh, 100, 0);
+  
+  Serial.print(" Moisture: " + String(hygrometerValue) + "% ");
   return hygrometerValue;
 }
